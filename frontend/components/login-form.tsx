@@ -39,9 +39,10 @@ export function LoginForm() {
 
           setMessage("✅ Login successful! Redirecting...");
           console.log("Logged In");
-          setTimeout(() => router.push("/feed"), 1500);
+          setTimeout(() => router.push('/home'), 100);
         } else {
           setMessage(`❌ ${data.message || "Login failed"}`);
+          console.log("Login failed");
         }
       } catch (error) {
         console.error(error);

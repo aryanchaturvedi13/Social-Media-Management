@@ -1,4 +1,4 @@
-import { UserProfile } from "@/components/user-profile"
+import { UserProfile } from "@/components/[username]"
 import { Navigation } from "@/components/navigation"
 
 export default function UserProfilePage({ params }: { params: { username: string } }) {

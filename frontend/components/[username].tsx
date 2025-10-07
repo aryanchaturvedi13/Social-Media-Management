@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Grid, List, Lock } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,48 +11,51 @@ interface UserProfileProps {
   username: string
 }
 
-// Mock user data - in real app, fetch based on username
-const userData = {
-  username: "jane_doe",
-  avatar: "/jane-avatar.png",
-  bio: "Photographer | Travel enthusiast | Coffee lover",
-  followers: 2345,
-  following: 432,
-  posts: 156,
-  isPrivate: false,
-  isFollowing: false,
+interface Post {
+  id: string
+  image: string
 }
 
-const privateUserData = {
-  username: "private_user",
-  avatar: "/private-avatar.png",
-  bio: "This account is private",
-  followers: 543,
-  following: 234,
-  posts: 67,
-  isPrivate: true,
-  isFollowing: false,
+interface UserData {
+  username: string
+  avatar: string
+  bio: string
+  followers: number
+  following: number
+  posts: number
+  isPrivate: boolean
+  isFollowing: boolean
 }
-
-// Mock posts
-const userPosts = [
-  { id: "1", image: "/other-user-post-1.png" },
-  { id: "2", image: "/other-user-post-2.png" },
-  { id: "3", image: "/other-user-post-3.png" },
-  { id: "4", image: "/other-user-post-4.png" },
-  { id: "5", image: "/other-user-post-5.png" },
-  { id: "6", image: "/other-user-post-6.png" },
-]
 
 export function UserProfile({ username }: UserProfileProps) {
-  // Simulate different users - in real app, fetch from API
-  const user = username === "private_user" ? privateUserData : userData
-  const [isFollowing, setIsFollowing] = useState(user.isFollowing)
+  const [user, setUser] = useState<UserData | null>(null)
+  const [userPosts, setUserPosts] = useState<Post[]>([])
+  const [isFollowing, setIsFollowing] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
 
+  useEffect(() => {
+    if (!username) return
+
+    // Fetch user info
+    fetch(`/api/users/${username}`)
+      .then(res => res.json())
+      .then((data: UserData) => {
+        setUser(data)
+        setIsFollowing(data.isFollowing)
+      })
+
+    // Fetch user's posts
+    fetch(`/api/users/${username}/posts`)
+      .then(res => res.json())
+      .then((posts: Post[]) => setUserPosts(posts))
+  }, [username])
+
   const handleFollow = () => {
+    // Optionally: call backend API to update follow status
     setIsFollowing(!isFollowing)
   }
+
+  if (!user) return <div>Loading...</div>
 
   const showPrivateMessage = user.isPrivate && !isFollowing
 
