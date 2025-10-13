@@ -46,6 +46,8 @@ model User {
   accountType      AccountType @default(PUBLIC) @map("account_type")
   followerCount    Int       @default(0) @map("follower_cnt")
   followingCount   Int       @default(0) @map("following_cnt")
+  postcount        Int       @default(0) @map("post_cnt")
+
   
   // Timestamps for record tracking
   createdAt        DateTime  @default(now())

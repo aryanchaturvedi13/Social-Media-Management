@@ -19,7 +19,7 @@ export function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
+    // login logic is here
     try {
         const res = await fetch("http://localhost:5000/auth/login", {
           method: "POST",
