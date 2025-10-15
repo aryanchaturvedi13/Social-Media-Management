@@ -132,7 +132,8 @@ export default function PostMediaCreator() {
     const ratio = aspectToRatio[state.aspect]
     // Create image
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image()
+    //const i = new Image()
+      const i = document.createElement("img")
       i.onload = () => resolve(i)
       i.onerror = reject
       i.src = state.url!

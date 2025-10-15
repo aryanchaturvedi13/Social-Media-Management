@@ -167,9 +167,14 @@ export default function PostTextCreator() {
           role="textbox"
           aria-multiline
           className="min-h-[320px] rounded-lg border bg-background p-4 leading-relaxed focus:outline-none"
-          placeholder="Start writing..."
           suppressContentEditableWarning
         />
+        {/* Show placeholder when editor is empty */}
+        {(!html && (!editorRef.current || !editorRef.current.innerText)) && (
+          <span className="pointer-events-none absolute p-4 text-muted-foreground select-none">
+            Start writing...
+          </span>
+        )}
         {preview && (
           <div className="rounded-lg border bg-card">
             <div className="border-b px-4 py-2 text-sm text-muted-foreground">Preview</div>
