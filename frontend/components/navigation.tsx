@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Compass, MessageCircle, User, Settings } from "lucide-react"
+import { Home, Compass, MessageCircle, User, Settings, NotepadText, ImagePlay } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navItems = [
@@ -11,6 +11,8 @@ const navItems = [
   { href: "/inbox", label: "Inbox", icon: MessageCircle },
   { href: "/profile", label: "Profile", icon: User },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/create/text", label: "Post text", icon: NotepadText },
+  { href: "/create/media", label: "Post media", icon: ImagePlay }
 ]
 
 export function Navigation() {
