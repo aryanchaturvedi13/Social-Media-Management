@@ -5,11 +5,11 @@ import DOMPurify from "dompurify"
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { jwtDecode } from "jwt-decode"
 
 type FontSizeOption = "Small" | "Normal" | "Large"
 const fontSizeMap: Record<FontSizeOption, string> = {
@@ -51,10 +51,87 @@ export default function PostTextCreator() {
     })
   }, [html])
 
-  const handlePost = () => {
-    console.log("[v0] Posting text html:", sanitized)
-    toast({ title: "Posted!", description: "Your text post has been prepared." })
+  // Upload to Cloudinary 
+  // This is your new function for uploading text
+  async function uploadTextToCloudinary(text: string, fileName: string = "content.txt") {
+    // 1. Create a File object from the text string
+    const file = new File([text], fileName, { type: "text/plain" });
+
+    const data = new FormData();
+    data.append("file", file);
+    // 2. Use your NEW preset for raw uploads
+    data.append("upload_preset", "unsigned_raw_upload"); // <-- Use the preset you just made
+
+    // 3. Call the 'raw' upload endpoint
+    const res = await fetch(
+      "https://api.cloudinary.com/v1_1/duqral7bw/raw/upload", // <-- Note '/raw/' instead of '/auto/'
+      { method: "POST", body: data }
+  );
+  
+    const result = await res.json();
+    return result.secure_url; // This will be the link to your .txt file
   }
+
+  const handlePost = async () => {
+    let userId: string | number;
+
+    // 1. Check if the post is empty
+    if (!sanitized || sanitized.trim() === "<p></p>" || sanitized.trim() === "") {
+      toast({ title: "Cannot post empty content", variant: "destructive" });
+      return;
+    }
+
+    // 2. Get User ID from token
+    try {
+      const token = localStorage.getItem("token"); 
+      if (!token) throw new Error("No token found");
+      const decodedToken: { userId: string | number } = jwtDecode(token);
+      userId = decodedToken.userId; 
+    } catch (error) {
+      toast({
+        title: "Not Authenticated",
+        description: "You must be logged in to post.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 3. Upload text and send to backend
+    try {
+      // 3a. Upload the 'sanitized' HTML to Cloudinary
+      // console.log("Uploading text to Cloudinary...");
+      const uploadedUrl = await uploadTextToCloudinary(sanitized);
+      // console.log("Text uploaded to:", uploadedUrl);
+
+      // 3b. Send the new post to your own backend
+      await fetch("http://localhost:5000/posts/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userId,
+          content: "", // Caption is empty, the 'mediaUrl' holds the text
+          mediaUrl: uploadedUrl,
+          postType: "TEXT", // Use a new post type for text
+        }),
+      });
+
+      // 3c. Success!
+      toast({
+        title: "Posted!",
+        description: "Your text post has been successfully uploaded.",
+      });
+      
+      // handleDiscard(); // Optionally clear the editor after posting
+
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Upload failed",
+        description: "Something went wrong while posting.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleDiscard = () => {
     setHtml("")
@@ -97,58 +174,6 @@ export default function PostTextCreator() {
                 <SelectItem value="Large">Large</SelectItem>
               </SelectContent>
             </Select>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Text color">
-                  Text
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48">
-                <div className="grid gap-2">
-                  <Label htmlFor="tc">Text color</Label>
-                  <input
-                    id="tc"
-                    type="color"
-                    value={textColor}
-                    onChange={(e) => {
-                      setTextColor(e.target.value)
-                      exec("foreColor", e.target.value)
-                    }}
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" aria-label="Highlight">
-                  Highlight
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-48">
-                <div className="grid gap-2">
-                  <Label htmlFor="hc">Highlight color</Label>
-                  <input
-                    id="hc"
-                    type="color"
-                    value={highlightColor}
-                    onChange={(e) => {
-                      setHighlightColor(e.target.value)
-                      // hiliteColor for Chrome, backColor for some browsers
-                      exec("hiliteColor", e.target.value)
-                    }}
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            <Button variant="outline" size="sm" onClick={() => exec("insertUnorderedList")} aria-label="Bulleted list">
-              • List
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => exec("insertOrderedList")} aria-label="Numbered list">
-              1. List
-            </Button>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
