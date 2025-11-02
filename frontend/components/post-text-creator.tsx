@@ -99,9 +99,7 @@ export default function PostTextCreator() {
     // 3. Upload text and send to backend
     try {
       // 3a. Upload the 'sanitized' HTML to Cloudinary
-      // console.log("Uploading text to Cloudinary...");
       const uploadedUrl = await uploadTextToCloudinary(sanitized);
-      // console.log("Text uploaded to:", uploadedUrl);
 
       // 3b. Send the new post to your own backend
       await fetch("http://localhost:5000/posts/create", {
