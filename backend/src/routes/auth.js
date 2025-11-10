@@ -1,6 +1,10 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import { authRequired } from "../middleware/auth.js";
+dotenv.config();
+
 // import { PrismaClient } from "@prisma/client";
 
 import pkg from "@prisma/client";
@@ -22,6 +26,10 @@ router.post("/signup", async (req, res) => {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser)
       return res.status(400).json({ message: "Email already exists" });
+
+    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUsername)
+      return res.status(400).json({ message: "Username already exists" });
 
     const hashedpassword = await bcrypt.hash(password, 10);
 
@@ -74,6 +82,26 @@ router.post("/login", async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Server error during login" });
   }
+});
+
+
+router.get("/me", authRequired, async (req, res) => {
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      bio: true,
+      followerCount: true,
+      followingCount: true,
+      postcount: true,
+      // add avatarUrl if you have it:
+      // avatarUrl: true,
+    },
+  });
+  if (!u) return res.status(404).json({ message: "User not found" });
+  res.json(u);
 });
 
 export default router;

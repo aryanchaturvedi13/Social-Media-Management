@@ -46,6 +46,8 @@ model User {
   accountType      AccountType @default(PUBLIC) @map("account_type")
   followerCount    Int       @default(0) @map("follower_cnt")
   followingCount   Int       @default(0) @map("following_cnt")
+  postcount        Int       @default(0) @map("post_cnt")
+
   
   // Timestamps for record tracking
   createdAt        DateTime  @default(now())
@@ -111,7 +113,7 @@ model Post {
   id               String    @id @default(cuid()) @map("post_id")
   userId           String    @map("user_id")
   postType         PostType  @map("post_type")
-  content          String?   @db.VarChar(2000)
+  caption          String?   @db.VarChar(2000)
   mediaUrl         String?   @map("media_url") @db.VarChar(500)
   likeCount        Int       @default(0) @map("like_cnt")
   commentCount     Int       @default(0) @map("comment_cnt")
@@ -248,3 +250,18 @@ model Admin {
   @@index([createdAt])
 }
 
+
+model FollowRequest {
+  id          String   @id @default(cuid()) @map("fr_id")
+  requesterId String   @map("requester_id")
+  targetId    String   @map("target_id")
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+
+  requester   User     @relation("FRRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  target      User     @relation("FRTarget",    fields: [targetId],   references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, targetId])
+  @@index([targetId, status])
+  @@map("FollowRequest")
+}
