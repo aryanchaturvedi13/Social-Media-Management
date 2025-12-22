@@ -5,63 +5,135 @@ import { authRequired } from "../middleware/auth.js";
 
 const { PrismaClient } = pkg;
 const prisma = new PrismaClient();
+
+async function isEitherBlocked(aId, bId) {
+  const block = await prisma.blocks.findFirst({
+    where: {
+      OR: [
+        { blockerId: aId, blockedId: bId },
+        { blockerId: bId, blockedId: aId },
+      ],
+    },
+  });
+  return !!block;
+}
+
+
 const router = express.Router();
 
 /**
  * GET /users/by-username/:username
- * Public profile shell + viewer flags (isFollowing, isSelf)
+ * Public profile payload + viewer-aware flags + (optionally) posts
  */
 router.get("/by-username/:username", async (req, res) => {
   try {
+    const { username } = req.params;
     const viewerId = req.user?.id || null;
 
     const u = await prisma.user.findUnique({
-      where: { username: req.params.username },
+      where: { username },
       select: {
         id: true,
         username: true,
+        name: true,
         bio: true,
+        avatarUrl: true,
+        accountType: true,
         followerCount: true,
         followingCount: true,
-        postcount: true,
-        accountType: true,
-        createdAt: true,
+        postCount: true,
       },
     });
-    if (!u) return res.status(404).json({ message: "User not found" });
 
-    let isFollowing = false;
-    if (viewerId) {
-      const f = await prisma.follows.findUnique({
-        where: {
-          followerId_followingId: { followerId: viewerId, followingId: u.id },
-        },
-      });
-      isFollowing = !!f;
+    if (!u) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    res.json({
+    const isSelf = viewerId === u.id;
+
+    // follow status from viewer -> profile owner
+    let followStatus = "NONE";
+    if (viewerId && !isSelf) {
+      const follow = await prisma.follows.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: viewerId,
+            followingId: u.id,
+          },
+        },
+      });
+
+      if (follow) {
+        followStatus = "FOLLOWING";
+      } else {
+        const fr = await prisma.followRequest.findUnique({
+          where: {
+            requesterId_targetId: {
+              requesterId: viewerId,
+              targetId: u.id,
+            },
+          },
+        });
+        if (fr && fr.status === "PENDING") {
+          followStatus = "REQUESTED";
+        }
+      }
+    }
+
+    const isPrivate = u.accountType === "PRIVATE";
+    const canViewPosts = !isPrivate || isSelf || followStatus === "FOLLOWING";
+
+    let postsList = [];
+    let postsGrid = [];
+
+    // only attach posts when the viewer is allowed to see them
+    if (canViewPosts) {
+      const posts = await prisma.post.findMany({
+        where: { userId: u.id },
+        orderBy: { postedAt: "desc" },
+        select: {
+          id: true,
+          caption: true,
+          mediaUrl: true,
+          postType: true,
+          postedAt: true,
+        },
+      });
+
+      postsList = posts.map((p) => ({
+        id: p.id,
+        caption: p.caption,
+        mediaUrl: p.mediaUrl,
+        postType: p.postType,
+        postedAt: p.postedAt,
+      }));
+      postsGrid = postsList;
+    }
+
+    return res.json({
       id: u.id,
       username: u.username,
-      bio: u.bio || "",
-      // no avatar column in your schema => send null; frontend will show placeholder
-      avatar: null,
-      followers: u.followerCount ?? 0,
-      following: u.followingCount ?? 0,
-      posts: u.postcount ?? 0,
-      isPrivate: u.accountType === "PRIVATE",
-      isFollowing,
-      isSelf: viewerId === u.id,
+      name: u.name,
+      bio: u.bio,
+      avatarUrl: u.avatarUrl,
+      followerCount: u.followerCount,
+      followingCount: u.followingCount,
+      postCount: u.postCount,
+      accountType: u.accountType, // "PUBLIC" | "PRIVATE"
+      isSelf,
+      followStatus,               // "NONE" | "REQUESTED" | "FOLLOWING"
+      postsList,
+      postsGrid,
     });
   } catch (err) {
-    console.error(err);
+    console.error("by-username failed:", err);
     res.status(500).json({ message: "Failed to load profile" });
   }
 });
 
 /**
+ * User's posts (privacy respected)
  * GET /users/:id/posts
- * Respects privacy (PRIVATE requires follower or self)
  */
 router.get("/:id/posts", async (req, res) => {
   try {
@@ -72,10 +144,12 @@ router.get("/:id/posts", async (req, res) => {
       where: { id: targetId },
       select: { accountType: true },
     });
-    if (!target) return res.status(404).json({ message: "User not found" });
+    if (!target) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     if (target.accountType === "PRIVATE" && viewerId !== targetId) {
-      const f = await prisma.follows.findUnique({
+      const follow = await prisma.follows.findUnique({
         where: {
           followerId_followingId: {
             followerId: viewerId || "",
@@ -83,7 +157,9 @@ router.get("/:id/posts", async (req, res) => {
           },
         },
       });
-      if (!f) return res.status(403).json({ message: "Private account" });
+      if (!follow) {
+        return res.status(403).json({ message: "Private account" });
+      }
     }
 
     const posts = await prisma.post.findMany({
@@ -95,79 +171,102 @@ router.get("/:id/posts", async (req, res) => {
         mediaUrl: true,
         postType: true,
         postedAt: true,
+        likeCount: true,
+        commentCount: true,
         author: { select: { username: true } },
       },
     });
+
     res.json(posts);
   } catch (err) {
-    console.error(err);
+    console.error("user posts failed:", err);
     res.status(500).json({ message: "Failed to load posts" });
   }
 });
 
 /**
- * POST /users/:id/follow
- * Public -> follow now; Private -> create follow request
+ * Follow / Unfollow
+ * POST   /users/:id/follow
+ * DELETE /users/:id/follow
+ * POST   /users/unfollow/:id  (legacy alias)
  */
 router.post("/:id/follow", authRequired, async (req, res) => {
   try {
     const me = req.user.id;
     const targetId = req.params.id;
-    if (me === targetId)
+
+    if (me === targetId) {
       return res.status(400).json({ message: "Cannot follow yourself" });
+    }
+
+    // NEW: block check
+    if (await isEitherBlocked(me, targetId)) {
+      return res.status(403).json({ message: "One of you has blocked the other" });
+    }
 
     const target = await prisma.user.findUnique({
       where: { id: targetId },
       select: { accountType: true },
     });
-    if (!target) return res.status(404).json({ message: "User not found" });
+    if (!target) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
+    // already following?
     const already = await prisma.follows.findUnique({
       where: {
         followerId_followingId: { followerId: me, followingId: targetId },
       },
     });
-    if (already) return res.json({ status: "FOLLOWING" });
+    if (already) {
+      return res.json({ status: "FOLLOWING" });
+    }
 
+    // PRIVATE account → only treat PENDING as "requested"
     if (target.accountType === "PRIVATE") {
-      const exists = await prisma.followRequest.findUnique({
-        where: {
-          requesterId_targetId: { requesterId: me, targetId },
-        },
+      const existingReq = await prisma.followRequest.findUnique({
+        where: { requesterId_targetId: { requesterId: me, targetId } },
       });
-      if (exists) return res.json({ status: "REQUESTED" });
+
+      if (existingReq && existingReq.status === "PENDING") {
+        return res.json({ status: "REQUESTED" });
+      }
+
+      // If there was an old REJECTED/ACCEPTED row, clear it and create a fresh PENDING
+      if (existingReq) {
+        await prisma.followRequest.delete({
+          where: { requesterId_targetId: { requesterId: me, targetId } },
+        });
+      }
 
       await prisma.followRequest.create({
-        data: { requesterId: me, targetId },
+        data: { requesterId: me, targetId, status: "PENDING" },
       });
       return res.json({ status: "REQUESTED" });
     }
 
-    await prisma.$transaction([
-      prisma.follows.create({
-        data: { followerId: me, followingId: targetId },
-      }),
-      prisma.user.update({
-        where: { id: targetId },
-        data: { followerCount: { increment: 1 } },
-      }),
-      prisma.user.update({
-        where: { id: me },
-        data: { followingCount: { increment: 1 } },
-      }),
-    ]);
+    // PUBLIC account → follow immediately
+    await prisma.follows.create({
+      data: { followerId: me, followingId: targetId },
+    });
 
-    res.json({ status: "FOLLOWING" });
+    await prisma.user.update({
+      where: { id: me },
+      data: { followingCount: { increment: 1 } },
+    }).catch(() => {});
+    await prisma.user.update({
+      where: { id: targetId },
+      data: { followerCount: { increment: 1 } },
+    }).catch(() => {});
+
+    return res.json({ status: "FOLLOWING" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Follow failed" });
+    return res.status(500).json({ message: "Follow failed" });
   }
 });
 
-/**
- * DELETE /users/:id/follow
- * POST /users/unfollow/:id  (alias)
- */
+
 router.delete("/:id/follow", authRequired, async (req, res) => {
   try {
     const me = req.user.id;
@@ -177,23 +276,27 @@ router.delete("/:id/follow", authRequired, async (req, res) => {
       prisma.follows.deleteMany({
         where: { followerId: me, followingId: targetId },
       }),
-      prisma.user.update({
-        where: { id: targetId },
-        data: { followerCount: { decrement: 1 } },
+      prisma.followRequest.deleteMany({
+        where: { requesterId: me, targetId, status: "PENDING" },
       }),
       prisma.user.update({
         where: { id: me },
         data: { followingCount: { decrement: 1 } },
       }),
+      prisma.user.update({
+        where: { id: targetId },
+        data: { followerCount: { decrement: 1 } },
+      }),
     ]);
 
-    res.json({ status: "UNFOLLOWED" });
+    return res.json({ status: "UNFOLLOWED" });
   } catch (err) {
-    console.error(err);
+    console.error("unfollow failed:", err);
     res.status(500).json({ message: "Unfollow failed" });
   }
 });
 
+// legacy alias used by some older frontend code
 router.post("/unfollow/:id", authRequired, async (req, res) => {
   try {
     const me = req.user.id;
@@ -204,76 +307,104 @@ router.post("/unfollow/:id", authRequired, async (req, res) => {
         where: { followerId: me, followingId: targetId },
       }),
       prisma.user.update({
-        where: { id: targetId },
-        data: { followerCount: { decrement: 1 } },
-      }),
-      prisma.user.update({
         where: { id: me },
         data: { followingCount: { decrement: 1 } },
       }),
+      prisma.user.update({
+        where: { id: targetId },
+        data: { followerCount: { decrement: 1 } },
+      }),
     ]);
 
-    res.json({ status: "UNFOLLOWED" });
+    return res.json({ status: "UNFOLLOWED" });
   } catch (err) {
-    console.error(err);
+    console.error("unfollow (legacy) failed:", err);
     res.status(500).json({ message: "Unfollow failed" });
   }
 });
 
 /**
- * GET /users/me/follow-requests
+ * Follow requests (for PRIVATE accounts)
+ * GET  /users/me/follow-requests
+ * POST /users/follow-requests/:requesterId/approve
+ * POST /users/follow-requests/:requesterId/reject
  */
 router.get("/me/follow-requests", authRequired, async (req, res) => {
   try {
+    const me = req.user.id;
+
     const rows = await prisma.followRequest.findMany({
-      where: { targetId: req.user.id, status: "PENDING" },
-      orderBy: { createdAt: "desc" },
-      select: {
-        requesterId: true,
-        createdAt: true,
-        requester: { select: { id: true, username: true } },
+      where: { targetId: me, status: "PENDING" },
+      include: {
+        requester: {
+          select: { id: true, username: true, avatarUrl: true },
+        },
       },
+      orderBy: { createdAt: "desc" },
     });
+
+    // frontend `InboxList` expects raw array with requester + createdAt
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error("follow-requests list failed:", err);
     res.status(500).json({ message: "Failed to load follow requests" });
   }
 });
 
-/**
- * POST /users/follow-requests/:requesterId/approve|reject
- */
 router.post(
   "/follow-requests/:requesterId/approve",
   authRequired,
   async (req, res) => {
     try {
-      const targetId = req.user.id;
+      const me = req.user.id;
       const requesterId = req.params.requesterId;
 
+      const fr = await prisma.followRequest.findUnique({
+        where: {
+          requesterId_targetId: {
+            requesterId,
+            targetId: me,
+          },
+        },
+      });
+
+      if (!fr || fr.status !== "PENDING") {
+        return res.status(404).json({ message: "Follow request not found" });
+      }
+
       await prisma.$transaction([
-        prisma.follows.create({
-          data: { followerId: requesterId, followingId: targetId },
+        prisma.followRequest.update({
+          where: {
+            requesterId_targetId: {
+              requesterId,
+              targetId: me,
+            },
+          },
+          data: { status: "APPROVED" },
+        }),
+        prisma.follows.upsert({
+          where: {
+            followerId_followingId: {
+              followerId: requesterId,
+              followingId: me,
+            },
+          },
+          update: {},
+          create: { followerId: requesterId, followingId: me },
         }),
         prisma.user.update({
-          where: { id: targetId },
+          where: { id: me },
           data: { followerCount: { increment: 1 } },
         }),
         prisma.user.update({
           where: { id: requesterId },
           data: { followingCount: { increment: 1 } },
         }),
-        prisma.followRequest.delete({
-          where: {
-            requesterId_targetId: { requesterId, targetId },
-          },
-        }),
       ]);
 
-      res.json({ status: "APPROVED" });
+      res.json({ ok: true });
     } catch (err) {
-      console.error(err);
+      console.error("approve follow-request failed:", err);
       res.status(500).json({ message: "Approve failed" });
     }
   }
@@ -284,20 +415,28 @@ router.post(
   authRequired,
   async (req, res) => {
     try {
-      const targetId = req.user.id;
+      const me = req.user.id;
       const requesterId = req.params.requesterId;
-      await prisma.followRequest.deleteMany({
-        where: { requesterId, targetId },
+
+      await prisma.followRequest.updateMany({
+        where: {
+          requesterId,
+          targetId: me,
+          status: "PENDING",
+        },
+        data: { status: "REJECTED" },
       });
-      res.json({ status: "REJECTED" });
+
+      res.json({ ok: true });
     } catch (err) {
-      console.error(err);
+      console.error("reject follow-request failed:", err);
       res.status(500).json({ message: "Reject failed" });
     }
   }
 );
 
 /**
+ * Followers / Following lists (privacy respected)
  * GET /users/:id/followers
  * GET /users/:id/following
  */
@@ -313,7 +452,7 @@ router.get("/:id/followers", async (req, res) => {
     if (!target) return res.status(404).json({ message: "User not found" });
 
     if (target.accountType === "PRIVATE" && viewerId !== targetId) {
-      const f = await prisma.follows.findUnique({
+      const follow = await prisma.follows.findUnique({
         where: {
           followerId_followingId: {
             followerId: viewerId || "",
@@ -321,17 +460,30 @@ router.get("/:id/followers", async (req, res) => {
           },
         },
       });
-      if (!f) return res.status(403).json({ message: "Private account" });
+      if (!follow) {
+        return res.status(403).json({ message: "Private account" });
+      }
     }
 
     const rows = await prisma.follows.findMany({
       where: { followingId: targetId },
-      include: { follower: { select: { id: true, username: true } } },
+      include: {
+        follower: {
+          select: { id: true, username: true, avatarUrl: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    res.json(rows.map((r) => r.follower));
+
+    res.json(
+      rows.map((r) => ({
+        id: r.follower.id,
+        username: r.follower.username,
+        avatarUrl: r.follower.avatarUrl || null,
+      }))
+    );
   } catch (err) {
-    console.error(err);
+    console.error("followers list failed:", err);
     res.status(500).json({ message: "Failed to load followers" });
   }
 });
@@ -348,7 +500,7 @@ router.get("/:id/following", async (req, res) => {
     if (!target) return res.status(404).json({ message: "User not found" });
 
     if (target.accountType === "PRIVATE" && viewerId !== targetId) {
-      const f = await prisma.follows.findUnique({
+      const follow = await prisma.follows.findUnique({
         where: {
           followerId_followingId: {
             followerId: viewerId || "",
@@ -356,29 +508,41 @@ router.get("/:id/following", async (req, res) => {
           },
         },
       });
-      if (!f) return res.status(403).json({ message: "Private account" });
+      if (!follow) {
+        return res.status(403).json({ message: "Private account" });
+      }
     }
 
     const rows = await prisma.follows.findMany({
       where: { followerId: targetId },
-      include: { following: { select: { id: true, username: true } } },
+      include: {
+        following: {
+          select: { id: true, username: true, avatarUrl: true },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
-    res.json(rows.map((r) => r.following));
+
+    res.json(
+      rows.map((r) => ({
+        id: r.following.id,
+        username: r.following.username,
+        avatarUrl: r.following.avatarUrl || null,
+      }))
+    );
   } catch (err) {
-    console.error(err);
+    console.error("following list failed:", err);
     res.status(500).json({ message: "Failed to load following" });
   }
 });
 
 /**
+ * SEARCH users
  * GET /users/search?query=<q>&limit=20&cursor=<userId>
- * No `mode: "insensitive"` and no avatar fields (your schema doesn’t have them).
- * Case-insensitive behavior depends on DB collation.
  */
 router.get("/search", async (req, res) => {
   try {
-    const viewerId = req.user?.id || null; // set by app.use(authOptional)
+    const viewerId = req.user?.id || null;
     const q = String(req.query.q || req.query.query || "").trim();
     const take = Math.min(50, Number(req.query.limit) || 20);
     const cursorId = req.query.cursor ? String(req.query.cursor) : null;
@@ -403,6 +567,7 @@ router.get("/search", async (req, res) => {
         followerCount: true,
         followingCount: true,
         createdAt: true,
+        avatarUrl: true,
       },
       orderBy: q ? [{ username: "asc" }] : [{ createdAt: "desc" }],
       take: take + 1,
@@ -426,18 +591,121 @@ router.get("/search", async (req, res) => {
       id: r.id,
       username: r.username,
       bio: r.bio || "",
-      avatar: null, // no avatar column in your schema
+      avatar: r.avatarUrl || null,
       isPrivate: r.accountType === "PRIVATE",
       followers: r.followerCount || 0,
       following: r.followingCount || 0,
       isFollowing: viewerId ? followingSet.has(r.id) : false,
     }));
 
-    res.json({ items, nextCursor: hasMore ? rows[rows.length - 1].id : null });
+    res.json({
+      items,
+      nextCursor: hasMore ? rows[rows.length - 1].id : null,
+    });
   } catch (err) {
-    console.error(err);
+    console.error("search failed:", err);
     res.status(500).json({ message: "Search failed" });
   }
 });
+
+/**
+ * BLOCK / UNBLOCK
+ * POST   /users/:id/block
+ * DELETE /users/:id/block
+ * GET    /users/me/blocked
+ */
+// POST /users/:id/block  -> block user
+router.post("/:id/block", authRequired, async (req, res) => {
+  try {
+    const me = req.user.id;
+    const targetId = String(req.params.id);
+
+    if (me === targetId) {
+      return res.status(400).json({ message: "Cannot block yourself" });
+    }
+
+    // 1) Create or keep the block
+    await prisma.blocks.upsert({
+      where: { blockerId_blockedId: { blockerId: me, blockedId: targetId } },
+      create: { blockerId: me, blockedId: targetId },
+      update: {},
+    });
+
+    // 2) Kill all follow relations in BOTH directions
+    await prisma.follows.deleteMany({
+      where: {
+        OR: [
+          { followerId: me, followingId: targetId },
+          { followerId: targetId, followingId: me },
+        ],
+      },
+    });
+
+    // 3) Kill all follow requests in BOTH directions (any status)
+    await prisma.followRequest.deleteMany({
+      where: {
+        OR: [
+          { requesterId: me, targetId },
+          { requesterId: targetId, targetId: me },
+        ],
+      },
+    });
+
+    return res.json({ ok: true, status: "BLOCKED" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Block failed" });
+  }
+});
+
+
+// DELETE /users/:id/block  -> unblock user
+router.delete("/:id/block", authRequired, async (req, res) => {
+  try {
+    const me = req.user.id;
+    const targetId = String(req.params.id);
+
+    await prisma.blocks.deleteMany({
+      where: { blockerId: me, blockedId: targetId },
+    });
+
+    return res.json({ ok: true, status: "UNBLOCKED" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Unblock failed" });
+  }
+});
+
+
+// GET /users/me/blocked  -> list people I blocked
+router.get("/me/blocked", authRequired, async (req, res) => {
+  try {
+    const me = req.user.id;
+
+    const rows = await prisma.blocks.findMany({
+      where: { blockerId: me },
+      include: {
+        blocked: { select: { id: true, username: true, avatarUrl: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const items = rows.map(r => ({
+      id: r.blocked.id,
+      username: r.blocked.username,
+      avatarUrl: r.blocked.avatarUrl || null,
+      blockedAt: r.createdAt,
+    }));
+
+    // IMPORTANT: return the array, not { items }
+    return res.json(items);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Failed to load blocked users" });
+  }
+});
+
+
+
 
 export default router;

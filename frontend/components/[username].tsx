@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import { Grid, List, Lock } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import BlockButton from "@/components/block-button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Grid, List, Lock, MessageCircle } from "lucide-react";
 
 type ViewMode = "grid" | "list";
 
@@ -13,173 +15,157 @@ interface UserProfileProps {
   username: string;
 }
 
-interface Post {
+type PostListItem = {
   id: string;
-  image: string;
-}
+  caption?: string | null;
+  postType: "TEXT" | "IMAGE" | "VIDEO";
+  mediaUrl?: string | null;
+  postedAt: string;
+};
 
-interface UserData {
+type FollowStatus = "NONE" | "REQUESTED" | "FOLLOWING";
+
+type UserData = {
   id: string;
   username: string;
-  avatar?: string;
-  bio?: string;
-  followers: number;
-  following: number;
-  posts: number;
+  name?: string | null;
+  avatar?: string | null;
+  bio?: string | null;
+  followers?: number;
+  following?: number;
+  posts?: number;
   isPrivate: boolean;
-  isFollowing?: boolean;
-  followStatus?: "NONE" | "REQUESTED" | "FOLLOWING";
-}
+  isSelf?: boolean;
+  followStatus: FollowStatus;   // <= normalized
+  // optional lists used by your UI (keep as-is if you have them)
+  postsList?: PostListItem[];
+  postsGrid?: PostListItem[];
+};
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const nf = new Intl.NumberFormat();
 
 function buildAuthHeaders(): Record<string, string> {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function UserProfile({ username }: UserProfileProps) {
+function noCache(url: string) {
+  const u = new URL(url);
+  u.searchParams.set("_", String(Date.now()));
+  return u.toString();
+}
+
+function nf(n?: number) {
+  if (typeof n !== "number") return "0";
+  try { return Intl.NumberFormat().format(n); } catch { return String(n); }
+}
+
+export default function UserProfile({ username }: UserProfileProps) {
   const [user, setUser] = useState<UserData | null>(null);
-  const [userPosts, setUserPosts] = useState<Post[]>([]);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [requestSent, setRequestSent] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [busy, setBusy] = useState(false);
+  const router = useRouter();
 
   const refreshUser = useCallback(async () => {
     if (!username) return;
 
     const res = await fetch(
-      `${API}/users/by-username/${encodeURIComponent(username)}`,
-      { headers: buildAuthHeaders() } // no memo – always fresh token
+      noCache(`${API}/users/by-username/${encodeURIComponent(username)}`),
+      { headers: buildAuthHeaders(), cache: "no-store" }
     );
     if (!res.ok) return;
 
     const raw = await res.json();
 
-    // normalize server fields -> client shape
+    // Normalize backend fields to our UI model
     const u: UserData = {
       id: raw.id,
       username: raw.username,
-      avatar: raw.avatar,
+      name: raw.name,
+      avatar: raw.avatarUrl ?? raw.avatar ?? null,
       bio: raw.bio,
-      followers: raw.followers ?? raw.followerCount ?? 0,
-      following: raw.following ?? raw.followingCount ?? 0,
-      posts: raw.posts ?? raw.postcount ?? 0,
-      isPrivate: raw.isPrivate ?? (raw.accountType === "PRIVATE"),
-      isFollowing: !!raw.isFollowing,
-      followStatus: raw.followStatus,
+      followers: raw.followerCount ?? raw.followers ?? 0,
+      following: raw.followingCount ?? raw.following ?? 0,
+      posts: raw.postcount ?? raw.posts ?? 0,
+      isPrivate: raw.accountType ? raw.accountType === "PRIVATE" : !!raw.isPrivate,
+      isSelf: !!raw.isSelf,
+      followStatus:
+        raw.followStatus === "REQUESTED" ? "REQUESTED" :
+        raw.isFollowing ? "FOLLOWING" : "NONE",
+      postsList: raw.postsList ?? [],
+      postsGrid: raw.postsGrid ?? [],
     };
 
     setUser(u);
-
-    const following =
-      !!u.isFollowing || u.followStatus === "FOLLOWING";
-    setIsFollowing(following);
-    setRequestSent(u.followStatus === "REQUESTED");
-
-    if (!u.isPrivate || following) {
-      const pRes = await fetch(`${API}/users/${u.id}/posts`, {
-        headers: buildAuthHeaders(),
-      });
-      if (pRes.ok) {
-        const posts = (await pRes.json()).map((p: any) => ({
-          id: String(p.id),
-          image: p.mediaUrl || "/placeholder.svg",
-        })) as Post[];
-        setUserPosts(posts);
-      } else {
-        setUserPosts([]);
-      }
-    } else {
-      setUserPosts([]);
-    }
   }, [username]);
 
   useEffect(() => {
-    (async () => {
-      await refreshUser();
-    })();
+    refreshUser();
   }, [refreshUser]);
 
-  const follow = useCallback(async () => {
-    if (!user || busy) return;
+  const onFollow = useCallback(async () => {
+    if (!user || user.isSelf || busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`${API}/users/${user.id}/follow`, {
+      const res = await fetch(`${API}/users/${encodeURIComponent(user.id)}/follow`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...buildAuthHeaders() },
+        headers: buildAuthHeaders(),
       });
 
-      if (res.status === 401) {
-        alert("Session expired. Please log in again.");
-        return;
-      }
-      if (!res.ok) {
-        const msg = await res.text().catch(() => "");
-        console.error("FOLLOW failed:", res.status, msg);
-        return;
-      }
+      // Robust handling: accept either HTTP 202 or JSON status
+      let statusJson: any = null;
+      try { statusJson = await res.json(); } catch {}
 
-      const data = await res.json().catch(() => ({}));
-      if (data?.status === "REQUESTED") {
-        setRequestSent(true);
-      } else {
-        // assume FOLLOWING when success and not explicitly REQUESTED
-        setIsFollowing(true);
-        setRequestSent(false);
-        setUser((prev) =>
-          prev ? { ...prev, followers: Math.max(0, (prev.followers ?? 0) + 1) } : prev
-        );
-      }
+      const statusString: FollowStatus =
+        statusJson?.status === "REQUESTED" || res.status === 202
+          ? "REQUESTED"
+          : "FOLLOWING";
+        console.log("Request sent");
+      // Optimistic UI:
+      setUser(prev => prev ? {
+        ...prev,
+        followStatus: statusString,
+        followers: statusString === "FOLLOWING" ? (prev.followers ?? 0) + 1 : prev.followers
+      } : prev);
 
+      // Hard refresh to sync counts/flags
       await refreshUser();
     } finally {
       setBusy(false);
     }
   }, [user, busy, refreshUser]);
 
-  const unfollow = useCallback(async () => {
-    if (!user || busy) return;
+  const onUnfollow = useCallback(async () => {
+    if (!user || user.isSelf || busy) return;
     setBusy(true);
     try {
-      // Try DELETE /users/:id/follow first
-      let res = await fetch(`${API}/users/${user.id}/follow`, {
+      const res = await fetch(`${API}/users/${encodeURIComponent(user.id)}/follow`, {
         method: "DELETE",
-        headers: { ...buildAuthHeaders() },
+        headers: buildAuthHeaders(),
       });
-
-      // Fallback to server’s route: /users/unfollow/:id
-      if (res.status === 404 || res.status === 405) {
-        res = await fetch(`${API}/users/unfollow/${user.id}`, {
-          method: "POST",
-          headers: { ...buildAuthHeaders() },
-        });
-      }
-
       if (!res.ok) {
-        const msg = await res.text().catch(() => "");
-        console.error("UNFOLLOW failed:", res.status, msg);
-        return;
+        console.error("unfollow failed", res.status);
       }
 
-      setIsFollowing(false);
-      setRequestSent(false);
-      setUser((prev) =>
-        prev ? { ...prev, followers: Math.max(0, (prev.followers ?? 0) - 1) } : prev
-      );
+      // Optimistic UI:
+      setUser(prev => prev ? {
+        ...prev,
+        followStatus: "NONE",
+        followers: Math.max(0, (prev.followers ?? 1) - 1)
+      } : prev);
 
+      // Hard refresh to sync state from server
       await refreshUser();
     } finally {
       setBusy(false);
     }
   }, [user, busy, refreshUser]);
 
-  if (!user) return <div className="px-4 py-6">Loading…</div>;
+  if (!user) {
+    return <div className="mx-auto max-w-4xl px-4 py-6">Loading…</div>;
+  }
 
-  const showPrivateMessage = user.isPrivate && !isFollowing;
+  const showPrivateWall = user.isPrivate && user.followStatus !== "FOLLOWING";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -191,30 +177,52 @@ export function UserProfile({ username }: UserProfileProps) {
 
         <div className="flex-1 text-center sm:text-left">
           <div className="mb-4 flex flex-col items-center gap-3 sm:flex-row sm:items-center">
-            <h1 className="text-2xl font-semibold tracking-tight">{user.username}</h1>
+            <div className="flex flex-col items-center gap-1 sm:items-start">
+              <h1 className="text-2xl font-semibold tracking-tight">{user.username}</h1>
+              {user.name ? <p className="text-sm text-muted-foreground">{user.name}</p> : null}
+            </div>
 
-            {!isFollowing ? (
-              <Button onClick={follow} disabled={busy || requestSent} size="sm">
-                {requestSent ? "Requested" : "Follow"}
-              </Button>
-            ) : (
-              <Button onClick={unfollow} disabled={busy} size="sm" variant="outline">
-                Following
-              </Button>
+            {!user.isSelf && (
+              <div className="flex gap-2">
+                {user.followStatus === "NONE" ? (
+                  <Button onClick={onFollow} disabled={busy} size="sm">
+                    Follow
+                  </Button>
+                ) : user.followStatus === "REQUESTED" ? (
+                  <Button size="sm" disabled variant="outline">
+                    Requested
+                  </Button>
+                ) : (
+                  <Button onClick={onUnfollow} disabled={busy} size="sm" variant="outline">
+                    Following
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => router.push(`/inbox?user=${encodeURIComponent(user.id)}`)}
+                >
+                  <MessageCircle className="mr-1 h-4 w-4" />
+                  Message
+                </Button>
+
+                <BlockButton targetId={user.id} onToggle={() => refreshUser()} />
+              </div>
             )}
           </div>
 
           <div className="mb-4 flex justify-center gap-6 sm:justify-start">
             <div className="text-center">
-              <p className="text-lg font-semibold">{nf.format(user.posts ?? 0)}</p>
+              <p className="text-lg font-semibold">{nf(user.posts)}</p>
               <p className="text-sm text-muted-foreground">Posts</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold">{nf.format(user.followers ?? 0)}</p>
+              <p className="text-lg font-semibold">{nf(user.followers)}</p>
               <p className="text-sm text-muted-foreground">Followers</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-semibold">{nf.format(user.following ?? 0)}</p>
+              <p className="text-lg font-semibold">{nf(user.following)}</p>
               <p className="text-sm text-muted-foreground">Following</p>
             </div>
           </div>
@@ -223,14 +231,16 @@ export function UserProfile({ username }: UserProfileProps) {
         </div>
       </div>
 
-      {showPrivateMessage ? (
+      {showPrivateWall ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <Lock className="h-8 w-8 text-muted-foreground" />
           </div>
           <h2 className="mb-2 text-xl font-semibold">This account is private</h2>
           <p className="text-sm text-muted-foreground">
-            {requestSent ? "Follow request sent. Wait for approval." : "Follow this account to see their posts"}
+            {user.followStatus === "REQUESTED"
+              ? "Follow request sent. Wait for approval."
+              : "Follow this account to see their posts"}
           </p>
         </div>
       ) : (
@@ -242,6 +252,7 @@ export function UserProfile({ username }: UserProfileProps) {
                 variant={viewMode === "grid" ? "secondary" : "ghost"}
                 size="icon"
                 onClick={() => setViewMode("grid")}
+                aria-label="Grid"
               >
                 <Grid className="h-4 w-4" />
               </Button>
@@ -249,27 +260,30 @@ export function UserProfile({ username }: UserProfileProps) {
                 variant={viewMode === "list" ? "secondary" : "ghost"}
                 size="icon"
                 onClick={() => setViewMode("list")}
+                aria-label="List"
               >
                 <List className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {viewMode === "grid" ? (
-            <div className="grid grid-cols-3 gap-1 sm:gap-2">
-              {userPosts.map((post) => (
-                <div key={post.id} className="relative aspect-square overflow-hidden rounded-sm">
-                  <Image src={post.image || "/placeholder.svg"} alt="Post" fill className="object-cover" />
-                </div>
+          {viewMode === "list" ? (
+            <div className="space-y-4">
+              {(user.postsList ?? []).filter(p => p.postType === "TEXT").map((post) => (
+                <Card key={post.id}>
+                  <CardContent className="p-4">
+                    <p className="text-sm">{post.caption}</p>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           ) : (
-            <div className="space-y-4">
-              {userPosts.map((post) => (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {(user.postsGrid ?? []).map((post) => (
                 <Card key={post.id}>
                   <CardContent className="p-4">
                     <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-                      <Image src={post.image || "/placeholder.svg"} alt="Post" fill className="object-cover" />
+                      <Image src={post.mediaUrl || "/placeholder.svg"} alt="Post" fill className="object-cover" />
                     </div>
                   </CardContent>
                 </Card>

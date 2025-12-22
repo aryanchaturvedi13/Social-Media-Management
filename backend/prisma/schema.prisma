@@ -1,12 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  // output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -14,9 +8,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// =========================
-// Enums
-// =========================
+/* ======================
+   Enums
+====================== */
 enum AccountType {
   PUBLIC
   PRIVATE
@@ -28,119 +22,114 @@ enum PostType {
   VIDEO
 }
 
-// =========================
-// User Model
-// =========================
+/* ======================
+   User
+====================== */
 model User {
-  // Primary identifier with database column mapping
-  id               String    @id @default(cuid()) @map("user_id")
-  
-  // Authentication and profile fields
-  username         String    @unique @map("user_name")
-  name             String
-  email            String    @unique
-  passwordHashed   String    @map("password_hashed")
-  bio              String?   @db.VarChar(500)
-  
-  // Account settings and statistics
-  accountType      AccountType @default(PUBLIC) @map("account_type")
-  followerCount    Int       @default(0) @map("follower_cnt")
-  followingCount   Int       @default(0) @map("following_cnt")
-  postcount        Int       @default(0) @map("post_cnt")
+  id             String       @id @default(cuid()) @map("user_id")
+  username       String       @unique @map("user_name")
+  name           String
+  email          String       @unique
+  passwordHashed String       @map("password_hashed")
+  bio            String?      @db.VarChar(500)
+  avatarUrl      String?      @map("avatar_url")
+  accountType    AccountType  @default(PUBLIC) @map("account_type")
+  followerCount  Int          @default(0) @map("follower_cnt")
+  followingCount Int          @default(0) @map("following_cnt")
+  postCount      Int          @default(0) @map("post_cnt")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  
-  // Timestamps for record tracking
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  
-  // Relationships with other entities
-  posts            Post[]
-  comments         Comment[]
-  likes            Like[]
-  reports          Report[]
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
-  
-  // Follow relationships (many-to-many)
-  following        Follows[] @relation("UserFollowing")
-  followers        Follows[] @relation("UserFollowedBy")
-  
-  // Block relationships (many-to-many)
-  blocked          Blocks[] @relation("Blocking")
-  blockedBy        Blocks[] @relation("BlockedBy")
+  // Relations
+  posts            Post[]           @relation("UserPosts")
+  comments         Comment[]        @relation("UserComments")
+  likes            Like[]           @relation("UserLikes")
+  reports          Report[]         @relation("UserReports")
+  sentMessages     Message[]        @relation("SentMessages")
+  receivedMessages Message[]        @relation("ReceivedMessages")
+  following        Follows[]        @relation("UserFollowing")   // as follower
+  followers        Follows[]        @relation("UserFollowedBy")  // as following
+  blocking         Blocks[]         @relation("Blocks_blocker")  // I block others
+  blockedBy        Blocks[]         @relation("Blocks_blocked")  // Others block me
+  sentRequests     FollowRequest[]  @relation("FR_Requester")
+  receivedRequests FollowRequest[]  @relation("FR_Target")
 
+  @@map("user")
   @@index([accountType])
   @@index([createdAt])
 }
 
-// =========================
-// Follows (Many-to-Many)
-// =========================
+/* ======================
+   Follows  (many-to-many)
+   - Code uses prisma.follows, and includes { follower } / { following }
+====================== */
 model Follows {
-  follower         User @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
-  followerId       String
-  following        User @relation("UserFollowedBy", fields: [followingId], references: [id], onDelete: Cascade)
-  followingId      String
-  createdAt        DateTime @default(now())
+  followerId  String   @map("followerId")
+  followingId String   @map("followingId")
+  createdAt   DateTime @default(now()) @map("createdAt")
+
+  follower  User @relation("UserFollowing",  fields: [followerId],  references: [id], onDelete: Cascade)
+  following User @relation("UserFollowedBy", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@id([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
   @@index([createdAt])
-  @@map("Follows")
+  @@map("follows")
 }
 
-// =========================
-// Blocks (Many-to-Many)
-// =========================
+
+/* ======================
+   Blocks  (many-to-many)
+   - Your DB columns are camelCase here -> blockerId/blockedId/createdAt
+   - Code uses prisma.blocks and includes { blocked }
+====================== */
 model Blocks {
-  blocker          User @relation("Blocking", fields: [blockerId], references: [id], onDelete: Cascade)
-  blockerId        String
-  blocked          User @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
-  blockedId        String
-  createdAt        DateTime @default(now())
+  blockerId String  @map("blockerId")
+  blockedId String  @map("blockedId")
+  createdAt DateTime @default(now()) @map("createdAt")
+
+  blocker User @relation("Blocks_blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocks_blocked", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@id([blockerId, blockedId])
   @@index([blockerId])
   @@index([blockedId])
-  @@map("Blocks")
+  @@map("blocks")
 }
 
-// =========================
-// Post Model
-// =========================
+/* ======================
+   Post
+====================== */
 model Post {
-  id               String    @id @default(cuid()) @map("post_id")
-  userId           String    @map("user_id")
-  postType         PostType  @map("post_type")
-  caption          String?   @db.VarChar(2000)
-  mediaUrl         String?   @map("media_url") @db.VarChar(500)
-  likeCount        Int       @default(0) @map("like_cnt")
-  commentCount     Int       @default(0) @map("comment_cnt")
-  
-  // FINAL FIX: Reverted map to original 'no_of_reports' for consistency
-  reportCount      Int       @default(0) @map("no_of_reports") 
-  
-  isHidden         Boolean   @default(false) @map("is_hidden")
-  postedAt         DateTime  @default(now()) @map("posted_at")
+  id           String   @id @default(cuid()) @map("post_id")
+  userId       String   @map("user_id")
+  postType     PostType @map("post_type")
+  caption      String?  @db.VarChar(2000)
+  mediaUrl     String?  @map("media_url") @db.VarChar(500)
+  likeCount    Int      @default(0) @map("like_cnt")
+  commentCount Int      @default(0) @map("comment_cnt")
+  reportCount  Int      @default(0) @map("no_of_reports")
+  isHidden     Boolean  @default(false) @map("is_hidden")
+  postedAt     DateTime @default(now()) @map("posted_at")
 
-  author           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  comments         Comment[]
-  likes            Like[]
-  sharedInMessages Message[] @relation("SharedPostMessages")
-  reports          Report[]  @relation("PostReports")
-  monitorRecord    ReportMonitor?
+  author        User           @relation("UserPosts", fields: [userId], references: [id], onDelete: Cascade)
+  comments      Comment[]      @relation("PostComments")
+  likes         Like[]         @relation("PostLikes")
+  messageShares Message[]      @relation("SharedPostMessages")
+  reports       Report[]       @relation("PostReports")
+  monitorRecord ReportMonitor? @relation("PostMonitor")
 
+  @@map("post")
   @@index([userId])
   @@index([postedAt])
   @@index([isHidden])
   @@index([reportCount])
-  @@map("Post")
 }
 
-// =========================
-// Comment Model (Nested Replies)
-// =========================
+/* ======================
+   Comment (1-tier replies)
+====================== */
 model Comment {
   id              String    @id @default(cuid()) @map("comment_id")
   content         String    @db.VarChar(1000)
@@ -150,118 +139,122 @@ model Comment {
   userId          String    @map("user_id")
   parentCommentId String?   @map("parent_cmtid")
 
-  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
-  replies         Comment[] @relation("CommentReplies")
+  post   Post @relation("PostComments", fields: [postId], references: [id], onDelete: Cascade)
+  author User @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
 
+  parentComment Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+  replies       Comment[] @relation("CommentReplies")
+
+  @@map("comment")
+  @@index([createdAt])
   @@index([postId])
   @@index([userId])
   @@index([parentCommentId])
-  @@index([createdAt])
-  @@map("Comment")
 }
 
-// =========================
-// Like Model (Weak Entity)
-// =========================
+/* ======================
+   Like (composite PK)
+====================== */
 model Like {
   userId    String   @map("user_id")
   postId    String   @map("post_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
+  user User @relation("UserLikes", fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation("PostLikes", fields: [postId], references: [id], onDelete: Cascade)
+
   @@id([userId, postId])
+  @@map("like")
   @@index([userId])
   @@index([postId])
-  @@map("Like")
 }
 
-// =========================
-// Private Messaging
-// =========================
+/* ======================
+   Message
+   - DB uses camelCase `updatedAt` (NOT updated_at)
+====================== */
 model Message {
   id         String   @id @default(cuid()) @map("message_id")
   content    String?  @db.VarChar(2000)
   mediaUrl   String?  @map("media_url") @db.VarChar(500)
   postId     String?  @map("post_id")
   sentAt     DateTime @default(now()) @map("sent_at")
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime @updatedAt @map("updatedAt")
   senderId   String   @map("sender_id")
   receiverId String   @map("receiver_id")
 
-  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  sharedPost Post?    @relation("SharedPostMessages", fields: [postId], references: [id])
+  sender     User  @relation("SentMessages",     fields: [senderId],   references: [id], onDelete: Cascade)
+  receiver   User  @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sharedPost Post? @relation("SharedPostMessages", fields: [postId], references: [id])
 
+  @@map("message")
   @@index([senderId])
   @@index([receiverId])
   @@index([sentAt])
-  @@map("Message")
 }
 
-// =========================
-// Report Model
-// =========================
+/* ======================
+   Report
+====================== */
 model Report {
   id         String   @id @default(cuid()) @map("report_id")
   postId     String   @map("post_id")
   userId     String   @map("user_id")
   reportedAt DateTime @default(now()) @map("reported_at")
 
-  post       Post     @relation("PostReports", fields: [postId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation("PostReports", fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation("UserReports", fields: [userId], references: [id], onDelete: Cascade)
 
+  @@map("report")
   @@index([postId])
   @@index([userId])
   @@index([reportedAt])
-  @@map("Report")
 }
 
-// =========================
-// Report Monitor Model
-// =========================
+/* ======================
+   ReportMonitor
+====================== */
 model ReportMonitor {
-  postId      String   @id @map("post_id")
-  
-  // FINAL FIX: Reverted map to original 'no_of_reports' for consistency
-  reportCount Int      @map("no_of_reports")
-  
-  status      Int      // 1=Unseen, 2=Under Review, 3=Resolved
+  postId      String @id @map("post_id")
+  reportCount Int    @map("no_of_reports")
+  status      Int
 
-  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post Post @relation("PostMonitor", fields: [postId], references: [id], onDelete: Cascade)
 
-  @@index([status])
+  @@map("reportmonitor")
   @@index([reportCount])
-  @@map("ReportMonitor")
+  @@index([status])
 }
 
-// =========================
-// Admin Model
-// =========================
-model Admin {
-  id               String @id @default(cuid()) @map("admin_id")
-  email            String @unique
-  passwordHashed   String
-  name             String
-  createdAt        DateTime @default(now())
-
-  @@index([createdAt])
-}
-
-
+/* ======================
+   FollowRequest
+   - Code uses prisma.followRequest with where: { requesterId_targetId: {...} }
+====================== */
 model FollowRequest {
   id          String   @id @default(cuid()) @map("fr_id")
   requesterId String   @map("requester_id")
   targetId    String   @map("target_id")
-  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 
-  requester   User     @relation("FRRequester", fields: [requesterId], references: [id], onDelete: Cascade)
-  target      User     @relation("FRTarget",    fields: [targetId],   references: [id], onDelete: Cascade)
+  requester User @relation("FR_Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  target    User @relation("FR_Target",    fields: [targetId],    references: [id], onDelete: Cascade)
 
-  @@unique([requesterId, targetId])
+  @@unique([requesterId, targetId]) // generates `requesterId_targetId` unique input
+  @@map("followrequest")
   @@index([targetId, status])
-  @@map("FollowRequest")
+}
+
+/* ======================
+   Admin
+====================== */
+model Admin {
+  id             String   @id @default(cuid()) @map("admin_id")
+  email          String   @unique
+  passwordHashed String   @map("password_hashed")
+  name           String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("admin")
+  @@index([createdAt])
 }
