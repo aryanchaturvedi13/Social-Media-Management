@@ -17,6 +17,19 @@ router.post("/create", async (req, res) => {
       prisma.user.update({ where: { id: userId }, data: { postCount: { increment: 1 } } }),
     ]);
 
+    if (!userId) {
+      return res.status(400).json({ error: "userId is required" });
+    }
+
+    const post = await prisma.post.create({
+      data: {
+        userId: userId,
+        caption: caption || "",
+        mediaUrl: mediaUrl || null,
+        postType: postType
+      },
+    });
+
     res.status(201).json(post);
   } catch (err) {
     console.error("Error creating post:", err);
@@ -53,6 +66,12 @@ router.get("/", async (req, res) => {
     });
     const likedSet = await markViewerLiked(prisma, viewerId, rows);
     const posts = rows.map((p) => ({ ...p, viewerLiked: likedSet.has(p.id) }));
+// GET all posts
+router.get("/", async (req, res) => {
+  try {
+    const posts = await prisma.post.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     res.json(posts);
   } catch (err) {
     console.error("Error fetching posts:", err);
@@ -65,6 +84,11 @@ router.get("/user/:id", async (req, res) => {
   try {
     const userId = req.params.id;
     const posts = await prisma.post.findMany({ where: { userId }, orderBy: { postedAt: "desc" } });
+    const userId = Number(req.params.id);
+    const posts = await prisma.post.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+    });
     res.json(posts);
   } catch (err) {
     console.error("Error fetching user posts:", err);
@@ -314,4 +338,5 @@ router.post("/:id/comments", authRequired, async (req, res) => {
 });
 
 
+export default router;
 export default router;

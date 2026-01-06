@@ -53,6 +53,42 @@ model User {
   blockedBy        Blocks[]         @relation("Blocks_blocked")  // Others block me
   sentRequests     FollowRequest[]  @relation("FR_Requester")
   receivedRequests FollowRequest[]  @relation("FR_Target")
+  // Primary identifier with database column mapping
+  id               String    @id @default(cuid()) @map("user_id")
+  
+  // Authentication and profile fields
+  username         String    @unique @map("user_name")
+  name             String
+  email            String    @unique
+  passwordHashed   String    @map("password_hashed")
+  bio              String?   @db.VarChar(500)
+  
+  // Account settings and statistics
+  accountType      AccountType @default(PUBLIC) @map("account_type")
+  followerCount    Int       @default(0) @map("follower_cnt")
+  followingCount   Int       @default(0) @map("following_cnt")
+  postcount        Int       @default(0) @map("post_cnt")
+
+  
+  // Timestamps for record tracking
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  // Relationships with other entities
+  posts            Post[]
+  comments         Comment[]
+  likes            Like[]
+  reports          Report[]
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  
+  // Follow relationships (many-to-many)
+  following        Follows[] @relation("UserFollowing")
+  followers        Follows[] @relation("UserFollowedBy")
+  
+  // Block relationships (many-to-many)
+  blocked          Blocks[] @relation("Blocking")
+  blockedBy        Blocks[] @relation("BlockedBy")
 
   @@map("user")
   @@index([accountType])
@@ -119,6 +155,26 @@ model Post {
   messageShares Message[]      @relation("SharedPostMessages")
   reports       Report[]       @relation("PostReports")
   monitorRecord ReportMonitor? @relation("PostMonitor")
+  id               String    @id @default(cuid()) @map("post_id")
+  userId           String    @map("user_id")
+  postType         PostType  @map("post_type")
+  caption          String?   @db.VarChar(2000)
+  mediaUrl         String?   @map("media_url") @db.VarChar(500)
+  likeCount        Int       @default(0) @map("like_cnt")
+  commentCount     Int       @default(0) @map("comment_cnt")
+  
+  // FINAL FIX: Reverted map to original 'no_of_reports' for consistency
+  reportCount      Int       @default(0) @map("no_of_reports") 
+  
+  isHidden         Boolean   @default(false) @map("is_hidden")
+  postedAt         DateTime  @default(now()) @map("posted_at")
+
+  author           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments         Comment[]
+  likes            Like[]
+  sharedInMessages Message[] @relation("SharedPostMessages")
+  reports          Report[]  @relation("PostReports")
+  monitorRecord    ReportMonitor?
 
   @@map("post")
   @@index([userId])

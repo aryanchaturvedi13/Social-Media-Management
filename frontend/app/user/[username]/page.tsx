@@ -1,4 +1,5 @@
 import UserProfile from "@/components/[username]"
+import { UserProfile } from "@/components/[username]"
 import { Navigation } from "@/components/navigation"
 export default function UserProfilePage({ params }: { params: { username: string } }) {
    const uname = decodeURIComponent(params.username || "");

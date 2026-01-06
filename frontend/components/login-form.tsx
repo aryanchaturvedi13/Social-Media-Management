@@ -33,6 +33,7 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    // login logic is here
     try {
       const res = await fetch("http://localhost:5000/auth/login", {
         method: "POST",
@@ -114,6 +115,17 @@ export function LoginForm() {
                       {loading ? "Signing in…" : "Sign in"}
                     </Button>
                   </form>
+          setMessage("✅ Login successful! Redirecting...");
+          console.log("Logged In");
+          setTimeout(() => router.push('/home'), 100);
+        } else {
+          setMessage(`❌ ${data.message || "Login failed"}`);
+          console.log("Login failed");
+        }
+      } catch (error) {
+        console.error(error);
+        setMessage("⚠️ Unable to connect to the server. Try again later.");
+      }
 
                   <div className="mt-4 text-center text-sm text-muted-foreground">
                     {"Don't have an account? "}

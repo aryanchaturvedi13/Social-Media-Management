@@ -3,6 +3,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import { authRequired } from "../middleware/auth.js";
+dotenv.config();
+
+// import { PrismaClient } from "@prisma/client";
+
 import pkg from "@prisma/client";
 
 dotenv.config();
@@ -31,6 +35,10 @@ router.post("/signup", async (req, res) => {
     if (existingUsername) {
       return res.status(400).json({ message: "Username already exists" });
     }
+
+    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    if (existingUsername)
+      return res.status(400).json({ message: "Username already exists" });
 
     const hashedpassword = await bcrypt.hash(password, 10);
 

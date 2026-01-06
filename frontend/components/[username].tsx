@@ -166,6 +166,66 @@ export default function UserProfile({ username }: UserProfileProps) {
   }
 
   const showPrivateWall = user.isPrivate && user.followStatus !== "FOLLOWING";
+"use client"
+
+import { useState, useEffect } from "react"
+import Image from "next/image"
+import { Grid, List, Lock } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+
+interface UserProfileProps {
+  username: string
+}
+
+interface Post {
+  id: string
+  image: string
+}
+
+interface UserData {
+  username: string
+  avatar: string
+  bio: string
+  followers: number
+  following: number
+  posts: number
+  isPrivate: boolean
+  isFollowing: boolean
+}
+
+export function UserProfile({ username }: UserProfileProps) {
+  const [user, setUser] = useState<UserData | null>(null)
+  const [userPosts, setUserPosts] = useState<Post[]>([])
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+
+  useEffect(() => {
+    if (!username) return
+
+    // Fetch user info
+    fetch(`/api/users/${username}`)
+      .then(res => res.json())
+      .then((data: UserData) => {
+        setUser(data)
+        setIsFollowing(data.isFollowing)
+      })
+
+    // Fetch user's posts
+    fetch(`/api/users/${username}/posts`)
+      .then(res => res.json())
+      .then((posts: Post[]) => setUserPosts(posts))
+  }, [username])
+
+  const handleFollow = () => {
+    // Optionally: call backend API to update follow status
+    setIsFollowing(!isFollowing)
+  }
+
+  if (!user) return <div>Loading...</div>
+
+  const showPrivateMessage = user.isPrivate && !isFollowing
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -232,6 +292,34 @@ export default function UserProfile({ username }: UserProfileProps) {
       </div>
 
       {showPrivateWall ? (
+          <AvatarFallback>{user.username[0].toUpperCase()}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 text-center sm:text-left">
+          <div className="mb-4 flex flex-col items-center gap-3 sm:flex-row sm:items-center">
+            <h1 className="text-2xl font-semibold tracking-tight">{user.username}</h1>
+            <Button onClick={handleFollow} variant={isFollowing ? "outline" : "default"} size="sm">
+              {isFollowing ? "Following" : "Follow"}
+            </Button>
+          </div>
+          <div className="mb-4 flex justify-center gap-6 sm:justify-start">
+            <div className="text-center">
+              <p className="text-lg font-semibold">{user.posts}</p>
+              <p className="text-sm text-muted-foreground">Posts</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-semibold">{user.followers}</p>
+              <p className="text-sm text-muted-foreground">Followers</p>
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-semibold">{user.following}</p>
+              <p className="text-sm text-muted-foreground">Following</p>
+            </div>
+          </div>
+          <p className="text-sm leading-relaxed">{user.bio}</p>
+        </div>
+      </div>
+
+      {showPrivateMessage ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
             <Lock className="h-8 w-8 text-muted-foreground" />
@@ -242,6 +330,7 @@ export default function UserProfile({ username }: UserProfileProps) {
               ? "Follow request sent. Wait for approval."
               : "Follow this account to see their posts"}
           </p>
+          <p className="text-sm text-muted-foreground">Follow this account to see their posts</p>
         </div>
       ) : (
         <>
@@ -284,6 +373,21 @@ export default function UserProfile({ username }: UserProfileProps) {
                   <CardContent className="p-4">
                     <div className="relative aspect-video w-full overflow-hidden rounded-lg">
                       <Image src={post.mediaUrl || "/placeholder.svg"} alt="Post" fill className="object-cover" />
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
+              {userPosts.map((post) => (
+                <div key={post.id} className="relative aspect-square overflow-hidden rounded-sm">
+                  <Image src={post.image || "/placeholder.svg"} alt="Post" fill className="object-cover" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {userPosts.map((post) => (
+                <Card key={post.id}>
+                  <CardContent className="p-4">
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg">
+                      <Image src={post.image || "/placeholder.svg"} alt="Post" fill className="object-cover" />
                     </div>
                   </CardContent>
                 </Card>
@@ -294,4 +398,5 @@ export default function UserProfile({ username }: UserProfileProps) {
       )}
     </div>
   );
+  )
 }
