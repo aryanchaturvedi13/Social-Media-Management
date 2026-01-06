@@ -10,6 +10,13 @@ import { useToast } from "@/components/ui/use-toast"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { jwtDecode } from "jwt-decode"
+import { useRouter } from "next/navigation"
+
+type FontSizeOption = "Small" | "Normal" | "Large"
+const fontSizeMap: Record<FontSizeOption, string> = { Small: "2", Normal: "3", Large: "5" }
+
+export default function PostTextCreator() {
+  const router = useRouter()
 
 type FontSizeOption = "Small" | "Normal" | "Large"
 const fontSizeMap: Record<FontSizeOption, string> = {
@@ -24,6 +31,13 @@ export default function PostTextCreator() {
   const [html, setHtml] = useState<string>("")
   const [preview, setPreview] = useState<boolean>(false)
   const [fontSize, setFontSize] = useState<FontSizeOption>("Normal")
+  const [posting, setPosting] = useState(false)
+
+  useEffect(() => {
+    try { document.execCommand("styleWithCSS", false, "true") } catch {}
+  }, [])
+
+  const onInput = () => setHtml(editorRef.current?.innerHTML ?? "")
   const [textColor, setTextColor] = useState<string>("#111111")
   const [highlightColor, setHighlightColor] = useState<string>("#ffff00")
 
@@ -51,6 +65,114 @@ export default function PostTextCreator() {
     })
   }, [html])
 
+  async function uploadTextToCloudinary(text: string, fileName = "content.txt") {
+    const file = new File([text], fileName, { type: "text/plain" })
+    const data = new FormData()
+    data.append("file", file)
+    data.append("upload_preset", "unsigned_raw_upload")
+    const res = await fetch("https://api.cloudinary.com/v1_1/duqral7bw/raw/upload", { method: "POST", body: data })
+    const result = await res.json()
+    return result.secure_url as string
+  }
+
+  const handlePost = async () => {
+    let userId: string | number
+    if (!sanitized || sanitized.trim() === "<p></p>" || sanitized.trim() === "") {
+      toast({ title: "Cannot post empty content", variant: "destructive" }); return;
+    }
+    try {
+      const token = localStorage.getItem("token"); if (!token) throw new Error("No token")
+      const decoded: { userId: string | number } = jwtDecode(token); userId = decoded.userId
+    } catch {
+      toast({ title: "Not Authenticated", description: "You must be logged in to post.", variant: "destructive" }); return
+    }
+
+    const tmp = document.createElement("div"); tmp.innerHTML = sanitized
+    const plain = (tmp.textContent || tmp.innerText || "").trim()
+    const caption = plain.slice(0, 180)
+
+    try {
+      setPosting(true)
+      const uploadedUrl = await uploadTextToCloudinary(sanitized)
+      const res = await fetch("http://localhost:5000/posts/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, caption, mediaUrl: uploadedUrl, postType: "TEXT" }),
+      })
+      const post = await res.json()
+      toast({ title: "Posted!", description: "Your text post has been successfully uploaded." })
+      setPosting(false)
+      router.push(`/profile?post=${encodeURIComponent(post.id)}`)
+    } catch (err) {
+      console.error(err)
+      setPosting(false)
+      toast({ title: "Upload failed", description: "Something went wrong while posting.", variant: "destructive" })
+    }
+  }
+
+  const handleDiscard = () => { setHtml(""); if (editorRef.current) editorRef.current.innerHTML = ""; }
+
+  return (
+    <>
+      {posting && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-muted-foreground border-t-transparent" />
+        </div>
+      )}
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => exec("bold")} aria-label="Bold"><span className="font-semibold">B</span></Button>
+              <Button variant="outline" size="sm" onClick={() => exec("italic")} aria-label="Italic"><span className="italic">I</span></Button>
+              <Button variant="outline" size="sm" onClick={() => exec("underline")} aria-label="Underline"><span className="underline">U</span></Button>
+            </div>
+            <Separator orientation="vertical" className="h-8" />
+            <div className="flex items-center gap-2">
+              <Select value={fontSize} onValueChange={(v: FontSizeOption) => { setFontSize(v); exec("fontSize", fontSizeMap[v]) }}>
+                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Font size" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Small">Small</SelectItem>
+                  <SelectItem value="Normal">Normal</SelectItem>
+                  <SelectItem value="Large">Large</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Label htmlFor="preview">Live preview</Label>
+              <Switch id="preview" checked={preview} onCheckedChange={setPreview} />
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="grid gap-4 relative">
+          <div
+            ref={editorRef}
+            onInput={onInput}
+            contentEditable
+            role="textbox"
+            aria-multiline
+            className="min-h-[320px] rounded-lg border bg-background p-4 leading-relaxed focus:outline-none"
+            suppressContentEditableWarning
+          />
+          {(!html && (!editorRef.current || !editorRef.current.innerText)) && (
+            <span className="pointer-events-none absolute p-4 select-none text-muted-foreground">Start writing...</span>
+          )}
+          {preview && (
+            <div className="rounded-lg border bg-card">
+              <div className="border-b px-4 py-2 text-sm text-muted-foreground">Preview</div>
+              <div className="prose max-w-none p-4" dangerouslySetInnerHTML={{ __html: sanitized }} />
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex items-center justify-between">
+          <Button variant="outline" onClick={handleDiscard} disabled={posting}>Discard</Button>
+          <Button onClick={handlePost} disabled={posting}>{posting ? "Posting…" : "Post"}</Button>
+        </CardFooter>
+      </Card>
+    </>
   // Upload to Cloudinary 
   // This is your new function for uploading text
   async function uploadTextToCloudinary(text: string, fileName: string = "content.txt") {

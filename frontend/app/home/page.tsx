@@ -1,4 +1,4 @@
-import { HomeFeed } from "@/components/home-feed"
+import HomeFeed from "@/components/home-feed"
 import { Navigation } from "@/components/navigation"
 
 export default function HomeFollowingPage() {
