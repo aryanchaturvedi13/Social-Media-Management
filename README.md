@@ -346,20 +346,6 @@ npm run dev
 
 ---
 
-# 📸 Screenshots
-
-> Add screenshots of your application here.
-
-| Login | Feed |
-|-------|------|
-| ![](assets/login.png) | ![](assets/feed.png) |
-
-| Profile | Messaging |
-|---------|-----------|
-| ![](assets/profile.png) | ![](assets/chat.png) |
-
----
-
 # 🔮 Future Improvements
 
 - 📱 Fully Responsive Mobile UI
