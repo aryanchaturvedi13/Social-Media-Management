@@ -103,7 +103,7 @@ The project was developed as a **Database Management Systems (DBMS)** semester p
 ---
 
 # 🏗 Architecture
-
+```
              React + Next.js
                    │
                    │ REST APIs
