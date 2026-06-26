@@ -1,99 +1,106 @@
- 🌐 Pulse - Social Media Management Platform
+# 🌐 Pulse - Social Media Management Platform
 
-> A modern full-stack social media platform built using the MERN-inspired architecture (React + Next.js + Express + MySQL) that enables users to connect, share content, interact in real-time, and communicate seamlessly.
+> A modern full-stack social media platform built using **React, Next.js, Node.js, Express.js, MySQL, and Prisma ORM** that enables users to connect, share content, interact in real-time, and communicate seamlessly.
 
 <p align="center">
-  <img src="https://img.shields.io/badge/React-19-blue?logo=react">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js">
-  <img src="https://img.shields.io/badge/Node.js-22-green?logo=node.js">
-  <img src="https://img.shields.io/badge/Express.js-Backend-lightgrey?logo=express">
-  <img src="https://img.shields.io/badge/MySQL-Database-blue?logo=mysql">
-  <img src="https://img.shields.io/badge/Prisma-ORM-2D3748?logo=prisma">
-  <img src="https://img.shields.io/badge/JWT-Authentication-red">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white">
+  <img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/Node.js-22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white">
+  <img src="https://img.shields.io/badge/Express.js-Backend-000000?style=for-the-badge&logo=express&logoColor=white">
+  <img src="https://img.shields.io/badge/MySQL-4479A1?style=for-the-badge&logo=mysql&logoColor=white">
+  <img src="https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white">
+  <img src="https://img.shields.io/badge/JWT-Authentication-D63AFF?style=for-the-badge">
 </p>
 
+---
 
+# 📖 Overview
 
- 📖 Overview
+**Pulse** is a feature-rich social media platform designed to replicate the experience of modern social networking applications. It enables users to create profiles, publish posts, interact through likes and comments, exchange messages, and receive real-time updates.
 
-**Pulse** is a feature-rich social media platform designed to simulate the functionality of modern social networking applications. It provides users with a seamless experience to create profiles, share posts, interact through comments and likes, send messages, and receive live updates—all while maintaining a scalable and normalized backend architecture.
+The application follows a scalable full-stack architecture and was developed as a **Database Management Systems (DBMS)** semester project.
 
-The project was developed as a **Database Management Systems (DBMS)** semester project under the guidance of **Dr. Nagendra**.
+---
 
+# ✨ Features
 
+## 👤 User Management
 
- ✨ Features
-
-- 👤 User Management
 - 🔐 Secure User Authentication using JWT
 - 📝 User Registration & Login
-- 👤 Profile Creation & Customization
-- 🖼️ Upload Profile Picture
+- 👤 User Profile Creation
 - ✏️ Edit Profile Details
+- 🖼️ Profile Picture Support
 - 🔍 Search Users
-- 📰 Social Feed
+
+---
+
+## 📰 Social Feed
+
 - 📝 Create Posts
 - 🖼️ Upload Images
 - 🗑️ Delete Posts
 - ❤️ Like / Unlike Posts
 - 💬 Comment on Posts
-- 🧵 Threaded Replies to Comments
+- 🧵 Threaded Replies
 - 📌 Personalized Feed
 
-🤝 Social Interaction
+---
 
-- 👥 Follow / Connect with Users
+## 🤝 Social Interaction
+
+- 👥 User Profiles
 - 🚫 Block Users
-- 🔔 Real-time Activity Updates
-- 💭 View User Profiles
 - 📊 Engagement Tracking
+- 🔔 Real-Time Notifications
 
- 💬 Messaging
+---
+
+## 💬 Messaging
 
 - 📩 One-to-One Messaging
-- ⚡ Live Message Updates using Server Sent Events (SSE)
+- ⚡ Real-Time Chat using Server Sent Events (SSE)
 - 💬 Conversation History
-- 👀 Real-time Chat Experience
 
 ---
 
 ## ⚙️ Backend Features
 
 - JWT Authentication
-- Password Encryption
+- Password Hashing
 - Protected Routes
-- RESTful API Design
+- RESTful API Architecture
 - Prisma ORM
 - Normalized Relational Database
-- Real-time Server Sent Events
+- Server Sent Events (SSE)
+- Middleware-based Request Handling
 - Error Handling
-- Middleware Architecture
 
 ---
 
 # 🛠 Tech Stack
 
-## Frontend
+### Frontend
 
-- ReactJS
-- NextJS
+- React.js
+- Next.js
 - JavaScript
 - CSS
 
-## Backend
+### Backend
 
-- NodeJS
-- ExpressJS
+- Node.js
+- Express.js
 - REST APIs
 - JWT Authentication
 - Server Sent Events (SSE)
 
-## Database
+### Database
 
 - MySQL
 - Prisma ORM
 
-## Development Tools
+### Development Tools
 
 - Git
 - GitHub
@@ -102,35 +109,34 @@ The project was developed as a **Database Management Systems (DBMS)** semester p
 
 ---
 
-# 🏗 Architecture
-```
-             React + Next.js
-                   │
-                   │ REST APIs
-                   ▼
-           Express.js Server
-                   │
-     ┌─────────────┴──────────────┐
-     │                            │
- JWT Authentication          SSE Events
-     │                            │
-     └─────────────┬──────────────┘
-                   ▼
-              Prisma ORM
-                   │
-                   ▼
-              MySQL Database
-```
+# 🏗 System Architecture
 
+```text
+                React + Next.js
+                      │
+                      │ REST APIs
+                      ▼
+              Express.js Server
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+ JWT Authentication         SSE (Real-Time)
+        │                           │
+        └─────────────┬─────────────┘
+                      ▼
+                 Prisma ORM
+                      │
+                      ▼
+                MySQL Database
 ```
 
 ---
 
 # 🗄 Database Design
 
-The backend follows a **normalized relational database design** consisting of **12+ interconnected tables**.
+The backend is powered by a **normalized relational database** consisting of **12+ interconnected tables**.
 
-Some of the major entities include:
+Major entities include:
 
 - Users
 - Posts
@@ -141,17 +147,17 @@ Some of the major entities include:
 - Conversations
 - User Blocks
 - Notifications
-- User Sessions
-- Media
 - Authentication Records
+- Media
+- Sessions
 
-The schema is designed to minimize redundancy while ensuring efficient querying and scalability.
+The schema minimizes redundancy while ensuring efficient querying and scalability.
 
 ---
 
-# 🚀 REST API Highlights
+# 🚀 REST APIs
 
-The backend exposes **10+ REST API endpoints**, including:
+The backend exposes multiple REST API endpoints.
 
 ### Authentication
 
@@ -159,7 +165,7 @@ The backend exposes **10+ REST API endpoints**, including:
 - Login
 - Logout
 
-### Users
+### User
 
 - Get Profile
 - Update Profile
@@ -190,88 +196,91 @@ The backend exposes **10+ REST API endpoints**, including:
 
 # ⚡ Real-Time Features
 
-Pulse uses **Server Sent Events (SSE)** to deliver real-time updates without requiring continuous polling.
+Pulse uses **Server Sent Events (SSE)** to provide real-time updates without continuous polling.
 
-Live updates include:
+Supported live events:
 
 - 💬 Incoming Messages
-- ❤️ New Likes
-- 💭 New Comments
+- ❤️ Likes
+- 💭 Comments
 - 🧵 Replies
 - 🔔 Notifications
 
 ---
 
-# 🔐 Authentication
+# 🔐 Authentication Flow
 
-The application uses **JWT (JSON Web Tokens)** for secure authentication.
-
-Authentication flow:
-
-```
-
+```text
 User Login
-│
-▼
-Generate JWT
-│
-▼
+     │
+     ▼
+Generate JWT Token
+     │
+     ▼
 Store Token
-│
-▼
-Authenticated Requests
-
+     │
+     ▼
+Authenticated API Requests
 ```
 
-Protected routes ensure that only authenticated users can access private resources.
+Only authenticated users can access protected resources.
 
 ---
 
 # 📂 Project Structure
 
-```
-
-Pulse/
+```text
+Pulse
 │
-├── client/
-│   ├── components/
-│   ├── pages/
-│   ├── hooks/
-│   ├── styles/
-│   └── utils/
+├── client
+│   ├── components
+│   ├── pages
+│   ├── hooks
+│   ├── styles
+│   └── utils
 │
-├── server/
-│   ├── controllers/
-│   ├── routes/
-│   ├── middleware/
-│   ├── prisma/
-│   ├── services/
-│   └── utils/
+├── server
+│   ├── controllers
+│   ├── middleware
+│   ├── prisma
+│   ├── routes
+│   ├── services
+│   └── utils
 │
-├── prisma/
+├── prisma
 │   └── schema.prisma
 │
 └── README.md
-
-````
+```
 
 ---
 
+# 💡 Use Cases
+
+Pulse can be used as:
+
+- 📚 Database Management Systems Project
+- 💼 Full-Stack Portfolio Project
+- 🎓 Learning Resource for React + Node.js + MySQL
+- 🚀 Starter Template for Social Networking Applications
+- 🔥 Demonstration of JWT Authentication and REST APIs
+
+---
 
 # 🎯 Learning Outcomes
 
-This project demonstrates practical understanding of:
+This project demonstrates:
 
 - Full Stack Development
-- REST API Design
+- Database Design
 - Database Normalization
-- Authentication Systems
-- ORM (Prisma)
-- Real-time Communication using SSE
-- State Management
-- Backend Architecture
+- REST API Development
+- Authentication using JWT
+- Prisma ORM
+- Real-Time Communication
 - CRUD Operations
-- Client-Server Communication
+- Client-Server Architecture
+- Backend Design Principles
 
 ---
 
@@ -281,7 +290,7 @@ This project demonstrates practical understanding of:
 
 ```bash
 git clone https://github.com/aryanchaturvedi13/Social-Media-Management.git
-````
+```
 
 ```bash
 cd Social-Media-Management
@@ -291,17 +300,17 @@ cd Social-Media-Management
 
 ## Install Dependencies
 
-### Frontend
-
-```bash
-cd client
-npm install
-```
-
 ### Backend
 
 ```bash
-cd server
+cd backend
+npm install
+```
+
+### Frontend
+
+```bash
+cd frontend
 npm install
 ```
 
@@ -309,19 +318,19 @@ npm install
 
 ## Configure Environment Variables
 
-Create a `.env` file inside the backend directory.
-
-Example:
+Create a `.env` file inside the backend folder.
 
 ```env
-DATABASE_URL=
-JWT_SECRET=
-PORT=
+DATABASE_URL=your_database_url
+
+JWT_SECRET=your_secret_key
+
+PORT=5000
 ```
 
 ---
 
-## Run Backend
+## Start the Backend
 
 ```bash
 npm run dev
@@ -329,7 +338,7 @@ npm run dev
 
 ---
 
-## Run Frontend
+## Start the Frontend
 
 ```bash
 npm run dev
@@ -341,27 +350,28 @@ npm run dev
 
 > Add screenshots of your application here.
 
-* Login Page
-* Home Feed
-* User Profile
-* Messaging
-* Comments
-* Notifications
+| Login | Feed |
+|-------|------|
+| ![](assets/login.png) | ![](assets/feed.png) |
+
+| Profile | Messaging |
+|---------|-----------|
+| ![](assets/profile.png) | ![](assets/chat.png) |
 
 ---
 
 # 🔮 Future Improvements
 
-* 📱 Mobile Responsive UI
-* 🌙 Dark Mode
-* 📹 Video Upload Support
-* 📞 Voice & Video Calls
-* 📌 Saved Posts
-* 🏷️ Hashtags
-* 📍 Location Tags
-* 🤖 AI-powered Content Recommendation
-* 🔔 Push Notifications
-* 📊 Analytics Dashboard
+- 📱 Fully Responsive Mobile UI
+- 🌙 Dark Mode
+- 📹 Video Upload Support
+- 📞 Voice & Video Calling
+- 📌 Saved Posts
+- 🏷️ Hashtags
+- 📍 Location Tags
+- 🤖 AI-powered Feed Recommendation
+- 🔔 Push Notifications
+- 📊 User Analytics Dashboard
 
 ---
 
@@ -371,9 +381,24 @@ Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch
+
+```bash
+git checkout -b feature-name
+```
+
 3. Commit your changes
-4. Push the branch
-5. Open a Pull Request
+
+```bash
+git commit -m "Added a new feature"
+```
+
+4. Push your branch
+
+```bash
+git push origin feature-name
+```
+
+5. Open a Pull Request 🚀
 
 ---
 
@@ -381,21 +406,10 @@ Contributions are welcome!
 
 **Aryan Chaturvedi**
 
-Feel free to connect or contribute to improve the project!
+If you found this project helpful, consider giving it a ⭐ on GitHub!
 
 ---
 
-# ⭐ Show Your Support
-
-If you found this project useful, consider giving it a ⭐ on GitHub!
-
-It helps others discover the project and motivates further development.
-
----
-
-## 📜 License
+# 📜 License
 
 This project is intended for educational purposes and is open for learning and experimentation.
-
-```
-```
