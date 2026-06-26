@@ -1,5 +1,4 @@
-```markdown
-# 🌐 Pulse - Social Media Management Platform
+ 🌐 Pulse - Social Media Management Platform
 
 > A modern full-stack social media platform built using the MERN-inspired architecture (React + Next.js + Express + MySQL) that enables users to connect, share content, interact in real-time, and communicate seamlessly.
 
@@ -13,31 +12,26 @@
   <img src="https://img.shields.io/badge/JWT-Authentication-red">
 </p>
 
----
 
-## 📖 Overview
+
+ 📖 Overview
 
 **Pulse** is a feature-rich social media platform designed to simulate the functionality of modern social networking applications. It provides users with a seamless experience to create profiles, share posts, interact through comments and likes, send messages, and receive live updates—all while maintaining a scalable and normalized backend architecture.
 
 The project was developed as a **Database Management Systems (DBMS)** semester project under the guidance of **Dr. Nagendra**.
 
----
 
-# ✨ Features
 
-## 👤 User Management
+ ✨ Features
 
+- 👤 User Management
 - 🔐 Secure User Authentication using JWT
 - 📝 User Registration & Login
 - 👤 Profile Creation & Customization
 - 🖼️ Upload Profile Picture
 - ✏️ Edit Profile Details
 - 🔍 Search Users
-
----
-
-## 📰 Social Feed
-
+- 📰 Social Feed
 - 📝 Create Posts
 - 🖼️ Upload Images
 - 🗑️ Delete Posts
@@ -46,9 +40,7 @@ The project was developed as a **Database Management Systems (DBMS)** semester p
 - 🧵 Threaded Replies to Comments
 - 📌 Personalized Feed
 
----
-
-## 🤝 Social Interaction
+🤝 Social Interaction
 
 - 👥 Follow / Connect with Users
 - 🚫 Block Users
@@ -56,9 +48,7 @@ The project was developed as a **Database Management Systems (DBMS)** semester p
 - 💭 View User Profiles
 - 📊 Engagement Tracking
 
----
-
-## 💬 Messaging
+ 💬 Messaging
 
 - 📩 One-to-One Messaging
 - ⚡ Live Message Updates using Server Sent Events (SSE)
@@ -114,9 +104,6 @@ The project was developed as a **Database Management Systems (DBMS)** semester p
 
 # 🏗 Architecture
 
-```
-
-```
              React + Next.js
                    │
                    │ REST APIs
