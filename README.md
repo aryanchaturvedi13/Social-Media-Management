@@ -405,11 +405,8 @@ git push origin feature-name
 # 👨‍💻 Author
 
 **Aryan Chaturvedi**
-
-If you found this project helpful, consider giving it a ⭐ on GitHub!
-
+**Sujith Dondapati**
+**HarshaVardhan B**
+**Vikram**
 ---
 
-# 📜 License
-
-This project is intended for educational purposes and is open for learning and experimentation.
